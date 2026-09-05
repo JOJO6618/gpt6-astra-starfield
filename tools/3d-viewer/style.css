@@ -1,0 +1,174 @@
+/* ===== 3D 旋臂预览 ===== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: #04060b;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter",
+    "Helvetica Neue", "Segoe UI", sans-serif;
+  color: rgba(235, 240, 250, 0.9);
+}
+
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+
+#view.dragging {
+  cursor: grabbing;
+}
+
+/* ---------- 控制面板 ---------- */
+.panel {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 10;
+  width: 280px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(10, 14, 22, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  user-select: none;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.title .sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: #c084fc;
+  margin-left: 6px;
+}
+
+.arm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.arm-row .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.arm-row .name {
+  width: 22px;
+  font-weight: 600;
+  flex: none;
+}
+
+.arm-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: #7da2ce;
+}
+
+.arm-row .val {
+  width: 42px;
+  text-align: right;
+  font-family: ui-monospace, monospace;
+  color: rgba(200, 215, 235, 0.85);
+  flex: none;
+}
+
+.adv {
+  margin: 8px 0 2px;
+  color: rgba(180, 195, 215, 0.75);
+}
+
+.adv summary {
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(235, 240, 250, 0.9);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn--primary {
+  background: rgba(96, 130, 190, 0.35);
+  border-color: rgba(140, 170, 220, 0.4);
+}
+
+.btn--primary:hover {
+  background: rgba(96, 130, 190, 0.55);
+}
+
+.toggles label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(200, 215, 235, 0.8);
+  cursor: pointer;
+}
+
+.hint {
+  margin-top: 10px;
+  color: rgba(160, 175, 195, 0.55);
+  font-size: 11px;
+}
+
+.cam {
+  margin-top: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: rgba(160, 180, 205, 0.7);
+}
+
+/* ---------- 底部说明 ---------- */
+.note {
+  position: fixed;
+  left: 18px;
+  bottom: 14px;
+  z-index: 10;
+  max-width: 520px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(150, 165, 185, 0.55);
+}
+
+.note code {
+  color: rgba(190, 210, 235, 0.75);
+  font-family: ui-monospace, monospace;
+}

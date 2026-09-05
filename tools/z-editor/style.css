@@ -1,0 +1,171 @@
+/* ===== Z 轴编辑器 ===== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: #070a10;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter",
+    "Helvetica Neue", "Segoe UI", sans-serif;
+  color: rgba(235, 240, 250, 0.9);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- 工具栏 ---------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: rgba(12, 16, 24, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex: none;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(235, 240, 250, 0.9);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn--primary {
+  background: rgba(96, 130, 190, 0.35);
+  border-color: rgba(140, 170, 220, 0.4);
+}
+
+.btn--primary:hover {
+  background: rgba(96, 130, 190, 0.55);
+}
+
+.btn--danger:hover {
+  background: rgba(190, 60, 60, 0.4);
+}
+
+.arm-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(220, 230, 245, 0.85);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.arm-btn .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 6px var(--c);
+}
+
+.arm-btn.active {
+  border-color: var(--c);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- 提示条 ---------- */
+.tipbar {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: rgba(180, 195, 215, 0.75);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex: none;
+}
+
+.tipbar b {
+  color: rgba(230, 240, 255, 0.95);
+}
+
+/* ---------- 主区 ---------- */
+.stage {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.pane {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane--editor {
+  flex: 11;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.pane--preview {
+  flex: 9;
+}
+
+.pane canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#board {
+  cursor: crosshair;
+}
+
+#view3d {
+  cursor: grab;
+}
+
+#view3d.dragging {
+  cursor: grabbing;
+}
+
+.pane-label {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  font-size: 11px;
+  color: rgba(150, 165, 185, 0.5);
+  pointer-events: none;
+}

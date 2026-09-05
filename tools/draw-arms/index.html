@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>旋臂画板 · GPT-6 Astra</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ============ 顶部工具栏 ============ -->
+  <header class="toolbar">
+    <div class="brand">旋臂画板</div>
+
+    <div class="group" id="modePicker" title="切换交互模式">
+      <button class="mode-btn active" data-mode="draw">✏️ 画线</button>
+      <button class="mode-btn" data-mode="edit">👆 拖点</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="group" id="armPicker" title="选择要绘制的旋臂"></div>
+
+    <div class="sep"></div>
+
+    <div class="group">
+      <label class="field">
+        <span>参考图</span>
+        <select id="refSelect">
+          <option value="none">无</option>
+          <option value="final" selected>官网最终形态</option>
+          <option value="sketch">手绘示意</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>透明度</span>
+        <input type="range" id="refAlpha" min="0" max="100" value="45" />
+      </label>
+      <label class="field">
+        <span>拟合精度</span>
+        <input type="range" id="epsilon" min="2" max="15" value="5" />
+        <em id="epsilonVal">5px</em>
+      </label>
+      <label class="field field--check">
+        <input type="checkbox" id="gridToggle" checked />
+        <span>网格</span>
+      </label>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="group">
+      <button id="reverseBtn" class="btn" title="把当前臂的点序反转（画反了就用它）">反转方向</button>
+      <button id="clearArmBtn" class="btn">清除当前臂</button>
+      <button id="clearAllBtn" class="btn btn--danger">全部清空</button>
+      <button id="importBtn" class="btn" title="导入已有的 arms-data.js，在画板上继续修改">导入数据</button>
+      <input type="file" id="importFile" accept=".js,.txt" hidden />
+      <button id="exportBtn" class="btn btn--primary">导出数据</button>
+    </div>
+  </header>
+
+  <!-- ============ 提示条 ============ -->
+  <div class="tipbar" id="tipbar">
+    从旋臂的<b>起点（外圈）</b>按住鼠标向<b>螺旋中心</b>方向画线（逆时针）。
+    状态栏会实时显示与已画线的距离，<b class="warn">变红说明太近（&lt;40px）</b>。画到中心附近即可，引擎会自动吸附。
+  </div>
+
+  <!-- ============ 画布区 ============ -->
+  <main class="stage" id="stage">
+    <canvas id="board"></canvas>
+  </main>
+
+  <!-- ============ 状态栏 ============ -->
+  <footer class="statusbar">
+    <span id="stPos">坐标 (–, –)</span>
+    <span id="stPolar">极坐标 α –° · r –</span>
+    <span id="stDist">与已画线距离 –</span>
+    <span class="spacer"></span>
+    <span id="stArms">已画 0 / 5 条</span>
+  </footer>
+
+  <!-- ============ 导出面板 ============ -->
+  <div class="export-panel" id="exportPanel" hidden>
+    <div class="export-head">
+      <b>导出 · arms-data.js</b>
+      <span id="exportCheck" class="export-check"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="copyBtn">复制代码</button>
+      <button class="btn btn--primary" id="downloadBtn">下载 arms-data.js</button>
+      <button class="btn" id="closeExportBtn">关闭</button>
+    </div>
+    <textarea id="exportCode" readonly spellcheck="false"></textarea>
+    <div class="export-foot">
+      把下载的文件移动到 <code>gpt6-astra/js/</code> 替换同名文件即可（或把代码发给我）。
+    </div>
+  </div>
+
+  <script src="spline.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

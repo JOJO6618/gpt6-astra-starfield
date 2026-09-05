@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D 旋臂预览 · GPT-6 Astra</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- ============ 控制面板 ============ -->
+  <div class="panel">
+    <div class="title">3D 旋臂预览 <span class="sub">O2 → P（紫）</span></div>
+
+    <!-- 臂高度滑条（JS 生成） -->
+    <div id="armRows"></div>
+
+    <details class="adv">
+      <summary>高度曲线幂次 k（越大越贴近平面、末段陡升）</summary>
+      <div id="kRows"></div>
+    </details>
+
+    <div class="row btns">
+      <button id="replay" class="btn btn--primary">▶ 重播视角动画</button>
+      <button id="exportBtn" class="btn">导出Z配置</button>
+    </div>
+
+    <div class="row toggles">
+      <label><input type="checkbox" id="tGrid" checked />网格</label>
+      <label><input type="checkbox" id="tDrops" checked />落点虚线</label>
+      <label><input type="checkbox" id="tParts" checked />粒子</label>
+    </div>
+
+    <div class="hint">拖动旋转 · 滚轮缩放 · 双击复位</div>
+    <div class="cam" id="camInfo">–</div>
+  </div>
+
+  <div class="note">
+    XY 取自 <code>js/arms-data.js</code>（实时同步）；Z 由 <code>config3d.js</code> 构造：
+    z(u) = z0·(1−u)^k，u 为沿臂弧长（0=起点 → 1=中心）
+  </div>
+
+  <script src="../../js/arms-data.js"></script>
+  <script src="../draw-arms/spline.js"></script>
+  <script src="config3d.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

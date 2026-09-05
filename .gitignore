@@ -1,0 +1,18 @@
+# 系统文件
+.DS_Store
+
+# 本地缓存
+cache/
+
+# 分析参考素材（官网截图/描线/手绘，仅本地留存，不入库）
+3d官网截图/
+3d官网截图+描线/
+视角转变/
+手绘坐标系/
+
+# 臂型数据迭代备份（最新版为 tools/draw-arms/arms-data.js 与 js/arms-data.js）
+tools/draw-arms/arms-data (*)*
+
+# 个人文稿草稿（如需随仓库发布可删除这两行）
+AI协作复现复杂前端动画.md
+B站视频文案.md

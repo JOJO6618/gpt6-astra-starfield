@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPT-6 Astra · 星空螺旋 6 动效复刻</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Hero 区：星空汇聚成螺旋 "6" -->
+  <section class="astra-hero" id="astraHero">
+    <canvas class="astra-canvas"></canvas>
+
+    <div class="astra-word astra-word--left">GPT</div>
+    <div class="astra-word astra-word--right">Astra</div>
+
+    <button class="astra-replay" type="button" aria-label="重新播放" title="重新播放">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <polyline points="21 3 21 9 15 9" />
+      </svg>
+    </button>
+  </section>
+
+  <!-- 滚动行程占位：提供可滚动高度，仅用于驱动相机俯仰 -->
+  <div class="scroll-space" aria-hidden="true"></div>
+
+  <script src="js/arms-data.js"></script>
+  <script src="js/arms-3d.js"></script>
+  <script src="js/zcurve.js"></script>
+  <script src="js/cam3d.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

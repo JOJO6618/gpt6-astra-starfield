@@ -1,0 +1,126 @@
+/* ===== GPT-6 Astra 星空螺旋动效 demo ===== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: #04060b;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter",
+    "Helvetica Neue", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Hero 容器 ---------- */
+.astra-hero {
+  position: fixed; /* 钉在视口：滚动只驱动相机，页面内容不移动 */
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  /* 深空底色：中心近黑 → 外围深蓝（与画布内背景一致） */
+  background: radial-gradient(
+    ellipse 90% 70% at 50% 55%,
+    #010204 0%,
+    #030408 30%,
+    #071020 65%,
+    #0b1728 100%
+  );
+}
+
+.astra-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 滚动行程占位：0~1 相机俯仰，1~2 星星分裂到两侧（实际滚动距离 = 450vh - 100vh = 350vh） */
+.scroll-space {
+  height: 450vh;
+}
+
+/* ---------- 两侧大字 ---------- */
+.astra-word {
+  position: absolute;
+  top: 56%; /* 与 6 的螺旋中心大致同高 */
+  transform: translateY(-50%);
+  z-index: 2;
+  color: #f5f7fa;
+  font-weight: 300;
+  font-size: clamp(30px, 6.5vw, 96px);
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 0 24px rgba(180, 205, 255, 0.18);
+  opacity: 0;
+  animation: astra-word-in 2.2s cubic-bezier(0.22, 0.61, 0.21, 1) 0.9s forwards;
+}
+
+.astra-word--left {
+  left: 7%;
+}
+
+.astra-word--right {
+  right: 7%;
+}
+
+@keyframes astra-word-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* 窄屏（含卡片预览）时缩小文字避免压住 6 */
+@media (max-width: 760px) {
+  .astra-word {
+    font-size: clamp(22px, 5.4vw, 40px);
+  }
+  .astra-word--left {
+    left: 4%;
+  }
+  .astra-word--right {
+    right: 4%;
+  }
+}
+
+/* ---------- 重播按钮 ---------- */
+.astra-replay {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  z-index: 3;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  transition: background 0.25s ease, transform 0.25s ease, color 0.25s ease;
+}
+
+.astra-replay:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  transform: rotate(-40deg);
+}
+
+.astra-replay:active {
+  transform: rotate(-40deg) scale(0.92);
+}

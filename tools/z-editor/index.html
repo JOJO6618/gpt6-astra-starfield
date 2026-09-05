@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Z 轴编辑器 · GPT-6 Astra</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ============ 顶部工具栏 ============ -->
+  <header class="toolbar">
+    <div class="brand">Z 轴编辑器</div>
+    <div class="group" id="armPicker" title="高亮某条臂（不影响拖动）"></div>
+    <div class="sep"></div>
+    <div class="group">
+      <button id="resetArmBtn" class="btn">当前臂回公式曲线</button>
+      <button id="resetAllBtn" class="btn btn--danger">全部重置</button>
+      <button id="copyBtn" class="btn">复制代码</button>
+      <button id="exportBtn" class="btn btn--primary">下载 arms-3d.js</button>
+    </div>
+  </header>
+
+  <!-- ============ 提示条 ============ -->
+  <div class="tipbar" id="tipbar">
+    左侧为每条臂的<b>高度剖面</b>（横轴 = 起点→中心，纵轴 = Z 高度），
+    <b>上下拖动圆点</b>改变高度，曲线自动平滑过点；最右端方点为螺旋中心，固定 z=0。
+    右侧 3D 预览实时联动，可拖动旋转、滚轮缩放。
+  </div>
+
+  <!-- ============ 主区：剖面编辑 + 3D 预览 ============ -->
+  <main class="stage">
+    <section class="pane pane--editor">
+      <canvas id="board"></canvas>
+      <div class="pane-label">高度剖面（u → z）</div>
+    </section>
+    <section class="pane pane--preview">
+      <canvas id="view3d"></canvas>
+      <div class="pane-label">3D 预览（拖动旋转 · 滚轮缩放 · 双击复位）</div>
+    </section>
+  </main>
+
+  <script src="../../js/arms-data.js"></script>
+  <script src="../../js/arms-3d.js"></script>
+  <script src="../../js/zcurve.js"></script>
+  <script src="../draw-arms/spline.js"></script>
+  <script src="preview3d.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
