@@ -4,7 +4,7 @@
 
 A recreation of the starfield background animation from OpenAI's [GPT-6 Astra landing page](https://openai.com/index/gpt-6-astra/): thousands of stars converge from random scatter into a spiral galaxy shaped like "6", a scroll-driven 3D camera tilts the view, the mouse interacts with stars via a force field, and scrolling further splits the galaxy into two halves that dissolve to the sides.
 
-> 🎬 **Demo GIF goes here** — a screen recording is the single most important part of this README (`docs/demo.gif`).
+![Demo](docs/demo.gif)
 
 ## ⚠️ Recreation Notes (read first)
 

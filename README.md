@@ -4,7 +4,7 @@
 
 复刻 OpenAI [GPT-6 Astra 发布页](https://openai.com/index/gpt-6-astra/)的星空背景动效：数千颗星辰从随机散布汇聚成螺旋星系 "6"，滚动驱动 3D 相机倾斜，鼠标与星星有力场交互，继续滚动星系裂成两半散向两侧。
 
-> 🎬 **Demo 动图位置**——建议录一段屏放在这里（`docs/demo.gif`），动图是这个 README 最重要的部分。
+![Demo](docs/demo.gif)
 
 ## ⚠️ 复刻说明（先读）
 
