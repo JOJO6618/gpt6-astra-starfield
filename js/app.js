@@ -459,15 +459,22 @@
 
     resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, CFG.maxDPR);
-      this.W = this.root.clientWidth;
-      this.H = this.root.clientHeight;
+      const w = this.root.clientWidth;
+      const h = this.root.clientHeight;
+      // 手机滚动时地址栏收起/展开会触发 resize；尺寸未变直接跳过，避免重建全部旋臂
+      if (w === this.W && h === this.H && this.dpr === dpr) return;
+      this.W = w;
+      this.H = h;
+      this.dpr = dpr;
       this.canvas.width = Math.round(this.W * dpr);
       this.canvas.height = Math.round(this.H * dpr);
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // viewFit < 1：整体缩小取景，6 的形状不再贴到窗口顶/底
       this.scale = Math.min(this.W / CFG.shapeW, this.H / CFG.shapeH) * (CFG.viewFit || 1);
-      CAM.setViewport(this.W, this.H, this.scale, CFG.centerAnchorY);
+      // 窄屏（手机竖屏）下螺旋 6 垂直居中；宽屏保持设计偏下锚点
+      const anchorY = this.W <= 760 ? 0.5 : CFG.centerAnchorY;
+      CAM.setViewport(this.W, this.H, this.scale, anchorY);
 
       this.arms = ARMS.map((def) => buildArm(def));
       this.originArms = this.arms.filter((a) => ORIGINS.includes(a.name));
