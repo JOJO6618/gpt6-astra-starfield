@@ -19,13 +19,15 @@
   const ARMS_META = [
     { name: 'G', color: '#4ade80', hint: '主螺旋：从右上尾巴尖经头部弧线画向中心' },
     { name: 'R', color: '#f87171', hint: '第二道：从左上外缘经左侧画向中心' },
-    { name: 'O1', color: '#fb923c', hint: '外圈主体：从左侧画满 6 的身体' },
-    { name: 'O2', color: '#fdba74', hint: '橙臂分叉：从腰部右侧画向中心' },
+    { name: 'O', color: '#fb923c', hint: '外圈主体：从左侧画满 6 的身体' },
+    { name: 'P', color: '#c084fc', hint: '紫臂分叉：从腰部右侧画向中心' },
     { name: 'B', color: '#60a5fa', hint: '下弧内侧：从底部画向右侧再内汇' },
   ];
 
   /* ---------------- 状态 ---------------- */
   const lines = {}; // name -> { cps:[{x,y}], sampled:[{x,y}], length }
+  // 导入文件里的 CFG / 调色板源码块：导出时原样带回，避免旧模板覆盖引擎侧最新调参
+  let importedBlocks = { cfg: null, colors: null };
   let currentArm = 'G';
   let mode = 'draw'; // 'draw' | 'edit'
   let drawing = false;
@@ -35,6 +37,9 @@
   let epsilon = 5;
   let refAlpha = 0.45;
   let refMode = 'final';
+  let refMove = false;        // 背景图平移模式：开启后画布拖动只移动背景图
+  const refOffsets = {};      // 每种参考图各自的设计坐标偏移 refMode -> {x,y}
+  let panning = null;         // 拖动中 { sx, sy, ox, oy }
   let showGrid = true;
   let mouse = null;
   const refImages = {};
@@ -47,6 +52,9 @@
   let viewScale = 1, dpr = 1;
 
   const metaOf = (name) => ARMS_META.find((m) => m.name === name);
+
+  /** 当前参考图的偏移量（不存在则创建） */
+  const refOff = () => (refOffsets[refMode] = refOffsets[refMode] || { x: 0, y: 0 });
 
   /* ---------------- 臂数据操作 ---------------- */
   function resample(name) {
@@ -141,13 +149,14 @@
     ctx.fillStyle = '#070a10';
     ctx.fillRect(0, 0, DESIGN_W, DESIGN_H);
 
-    // 参考图（contain 适配设计区）
+    // 参考图（contain 适配设计区 + 用户平移偏移）
     const img = refImages[refMode];
     if (img && img.complete && img.naturalWidth) {
       const s = Math.min(DESIGN_W / img.naturalWidth, DESIGN_H / img.naturalHeight);
       const w = img.naturalWidth * s, h = img.naturalHeight * s;
+      const o = refOff();
       ctx.globalAlpha = refAlpha;
-      ctx.drawImage(img, (DESIGN_W - w) / 2, (DESIGN_H - h) / 2, w, h);
+      ctx.drawImage(img, (DESIGN_W - w) / 2 + o.x, (DESIGN_H - h) / 2 + o.y, w, h);
       ctx.globalAlpha = 1;
     }
 
@@ -245,6 +254,15 @@
     return { d: best, arm: bestArm };
   }
 
+  /** 平移模式下的状态栏：鼠标坐标 + 当前背景偏移 */
+  function updateRefStatus(p) {
+    const o = refOff();
+    $('stPos').textContent = `坐标 (${Math.round(p.x)}, ${Math.round(p.y)})`;
+    const el = $('stDist');
+    el.textContent = `背景偏移 (${o.x}, ${o.y})`;
+    el.className = '';
+  }
+
   function updateMouseStatus(p, excludeArm) {
     $('stPos').textContent = `坐标 (${Math.round(p.x)}, ${Math.round(p.y)})`;
     const pl = polarOf(p);
@@ -279,6 +297,16 @@
     const p = toDesign(e);
     if (p.x < 0 || p.x > DESIGN_W || p.y < 0 || p.y > DESIGN_H) return;
 
+    // 背景图平移模式：拖动只改偏移，不画线不拖点
+    if (refMove) {
+      if (!refImages[refMode]) return;
+      const o = refOff();
+      panning = { sx: p.x, sy: p.y, ox: o.x, oy: o.y };
+      canvas.style.cursor = 'grabbing';
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     if (mode === 'edit') {
       const hit = findCpNear(p, 14 / viewScale);
       if (hit) {
@@ -299,6 +327,18 @@
   canvas.addEventListener('pointermove', (e) => {
     const p = toDesign(e);
     mouse = p;
+
+    // 背景图平移模式：更新偏移并实时重绘；状态栏显示当前偏移量
+    if (refMove) {
+      if (panning) {
+        const o = refOff();
+        o.x = Math.round(panning.ox + (p.x - panning.sx));
+        o.y = Math.round(panning.oy + (p.y - panning.sy));
+        draw();
+      }
+      updateRefStatus(p);
+      return;
+    }
 
     if (mode === 'edit') {
       if (dragCp) {
@@ -325,6 +365,11 @@
   });
 
   canvas.addEventListener('pointerup', () => {
+    if (refMove) {
+      panning = null;
+      canvas.style.cursor = 'grab';
+      return;
+    }
     if (mode === 'edit') {
       if (dragCp) {
         dragCp = null;
@@ -369,6 +414,51 @@
   }
 
   /* ---------------- 导出 ---------------- */
+  /** 从 arms-data.js 源码中整段抽取代码块（含缩进与注释），失败返回 null */
+  function extractBlock(text, header, closer) {
+    const i = text.indexOf(header);
+    if (i < 0) return null;
+    const j = text.indexOf('\n' + closer, i);
+    if (j < 0) return null;
+    return text.slice(i, j + 1 + closer.length);
+  }
+
+  // 默认配置块：与 js/arms-data.js 当前版本保持一致（导入过文件时以导入为准）
+  const DEFAULT_CFG_BLOCK = `const CFG = {
+    designW: 1600,
+    designH: 900,
+    center: { x: 800, y: 555 },
+    centerAnchorY: 0.615,
+    shapeW: 730,
+    shapeH: 880,
+    viewFit: 0.95,   // 取景留白系数：1 = 形状贴满窗口限制边；越小四周边距越大
+
+    scatterEnd: 1.8,
+    gatherEnd: 5.0,
+    centerStarIn: [3.2, 5.4],
+    originGlowIn: [4.0, 5.6],
+
+    bandHalf: 9.5,  // 官网星带并非细线：恢复少量横向厚度
+    bandHalfY: 5.5,
+    flowPeriod: [40, 60],
+    flowDensity: 0.56, // 增加彩色微星数量，让旋臂更接近官网的颗粒密度
+    bgStars: 640,      // 官网背景仍有相当数量的低亮彩色针尖星
+
+    trailAlphaGather: 1,
+    trailAlphaFlow: 1,
+    maxDPR: 2,
+  };`;
+
+  const DEFAULT_COLORS_BLOCK = `const STAR_COLORS = [
+    { rgb: [255, 255, 255], weight: 30 }, // neutral white
+    { rgb: [186, 230, 255], weight: 22 }, // ice blue-white
+    { rgb: [86, 205, 246],  weight: 18 }, // cyan
+    { rgb: [52, 162, 224],  weight: 8 },  // deep cyan
+    { rgb: [255, 221, 181], weight: 7 },  // warm white
+    { rgb: [255, 157, 83],  weight: 10 }, // amber
+    { rgb: [255, 101, 62],  weight: 5 },  // coral
+  ];`;
+
   function buildExport() {
     const armBlocks = ARMS_META.filter((m) => lines[m.name]).map((m) => {
       const pts = lines[m.name].cps.map((p) => `[${p.x}, ${p.y}]`);
@@ -377,8 +467,12 @@
       return `    {\n      name: '${m.name}',\n      pts: [\n        ${rows.join(',\n        ')},\n      ],\n    }`;
     }).join(',\n');
 
-    const origins = ARMS_META.filter((m) => lines[m.name] && m.name !== 'O2')
+    const origins = ARMS_META.filter((m) => lines[m.name] && m.name !== 'P')
       .map((m) => `'${m.name}'`).join(', ');
+
+    // CFG / 调色板优先沿用导入文件里的源码块；未导入时用上方默认块
+    const cfgBlock = importedBlocks.cfg || DEFAULT_CFG_BLOCK;
+    const colorsBlock = importedBlocks.colors || DEFAULT_COLORS_BLOCK;
 
     return `/* ============================================================
  * GPT-6 Astra 星空动效 · 配置与旋臂路径数据
@@ -388,39 +482,9 @@
 (function () {
   'use strict';
 
-  const CFG = {
-    designW: 1600,
-    designH: 900,
-    center: { x: 800, y: 555 },
-    centerAnchorY: 0.615,
-    shapeW: 730,
-    shapeH: 880,
+  ${cfgBlock}
 
-    scatterEnd: 1.8,
-    gatherEnd: 5.0,
-    centerStarIn: [3.2, 5.4],
-    originGlowIn: [4.0, 5.6],
-
-    bandHalf: 10,   // 平面宽度（半宽，设计 px）
-    bandHalfY: 6,   // 垂直厚度（半宽，设计 px）：斜视时臂呈扁椭圆截面管道，不再薄成线
-    flowPeriod: [40, 60],
-    flowDensity: 0.39,
-    bgStars: 700,
-
-    trailAlphaGather: 1,
-    trailAlphaFlow: 1,
-    maxDPR: 2,
-  };
-
-  const STAR_COLORS = [
-    { rgb: [255, 255, 255], weight: 32 },
-    { rgb: [150, 205, 255], weight: 20 },
-    { rgb: [110, 175, 255], weight: 10 },
-    { rgb: [255, 170, 92], weight: 16 },
-    { rgb: [255, 110, 95], weight: 10 },
-    { rgb: [255, 214, 140], weight: 8 },
-    { rgb: [255, 140, 70], weight: 4 },
-  ];
+  ${colorsBlock}
 
   const ARMS = [
 ${armBlocks}
@@ -468,19 +532,27 @@ ${armBlocks}
       $('tipbar').innerHTML = `<b class="warn">导入失败</b>：文件解析出错 —— ${err.message}`;
       return;
     }
+    // 记住导入文件里的 CFG / 调色板源码块，导出时原样带回
+    importedBlocks = {
+      cfg: extractBlock(text, 'const CFG = {', '  };'),
+      colors: extractBlock(text, 'const STAR_COLORS = [', '  ];'),
+    };
+    // 旧版文件兼容：臂名 O1/O2 自动映射为新名 O/P
+    const LEGACY = { O1: 'O', O2: 'P' };
     const arms = data && Array.isArray(data.ARMS) ? data.ARMS : [];
     const loaded = [];
     for (const def of arms) {
-      if (!metaOf(def.name) || !Array.isArray(def.pts) || def.pts.length < 2) continue;
-      lines[def.name] = {
+      const canon = LEGACY[def.name] || def.name;
+      if (!metaOf(canon) || !Array.isArray(def.pts) || def.pts.length < 2) continue;
+      lines[canon] = {
         cps: def.pts.map(([x, y]) => ({ x: Math.round(x), y: Math.round(y) })),
       };
-      resample(def.name);
-      loaded.push(def.name);
+      resample(canon);
+      loaded.push(canon);
     }
     if (!loaded.length) {
       $('tipbar').innerHTML =
-        '<b class="warn">导入失败</b>：文件里没有可识别的旋臂数据（G/R/O1/O2/B）';
+        '<b class="warn">导入失败</b>：文件里没有可识别的旋臂数据（G/R/O/P/B）';
       return;
     }
     // 清空导入文件里没有的旧臂，避免与新数据混在一起
@@ -509,6 +581,43 @@ ${armBlocks}
     rd.readAsText(f);
   }
 
+  /* ---------------- 自定义背景图 ---------------- */
+  /** 导入本地图片作为描摹背景：加入参考图下拉并自动选中 */
+  function importRefImage(f) {
+    if (!f || !f.type.startsWith('image/')) {
+      $('tipbar').innerHTML = '<b class="warn">导入失败</b>：请选择图片文件（png / jpg / webp 等）';
+      return;
+    }
+    const rd = new FileReader();
+    rd.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        refImages.custom = img;
+        refOffsets.custom = { x: 0, y: 0 }; // 新图重新对位，从默认居中开始
+        const sel = $('refSelect');
+        let opt = sel.querySelector('option[value="custom"]');
+        if (!opt) {
+          opt = document.createElement('option');
+          opt.value = 'custom';
+          sel.appendChild(opt);
+        }
+        const name = f.name.length > 18 ? f.name.slice(0, 17) + '…' : f.name;
+        opt.textContent = `自定义：${name}`;
+        sel.value = 'custom';
+        refMode = 'custom';
+        draw();
+        $('tipbar').innerHTML =
+          `✓ 已导入背景图 <b>${f.name}</b>（${img.naturalWidth}×${img.naturalHeight}）—— ` +
+          `按 contain 适配设计区，用「透明度」滑杆调节；在「参考图」下拉里可切回预设图。`;
+      };
+      img.onerror = () => {
+        $('tipbar').innerHTML = '<b class="warn">导入失败</b>：图片解析出错，换一张试试';
+      };
+      img.src = String(rd.result || '');
+    };
+    rd.readAsDataURL(f);
+  }
+
   /* ---------------- 事件绑定 ---------------- */
   document.querySelectorAll('.mode-btn').forEach((b) =>
     b.addEventListener('click', () => {
@@ -522,6 +631,29 @@ ${armBlocks}
   );
 
   $('refSelect').addEventListener('change', (e) => { refMode = e.target.value; draw(); });
+  // 移动背景图：开关平移模式（开启时画线/拖点自动挂起；退出后图片固定在当前位置）
+  $('refMoveBtn').addEventListener('click', () => {
+    if (!refMove && !refImages[refMode]) {
+      $('tipbar').innerHTML = '当前没有显示参考图 —— 先在「参考图」下拉里选一张，或点「导入背景图」。';
+      return;
+    }
+    refMove = !refMove;
+    $('refMoveBtn').classList.toggle('active', refMove);
+    canvas.style.cursor = refMove ? 'grab' : 'crosshair';
+    if (refMove) {
+      $('tipbar').innerHTML =
+        '<b>移动背景图</b> —— 在画布上按住拖动，把图中螺旋中心对准<b>中心十字 (800, 555)</b>；' +
+        '状态栏实时显示偏移量。对准后再点一次「移动背景图」退出，图片即固定在该位置。';
+    } else {
+      updateTip();
+    }
+    draw();
+  });
+  $('refResetBtn').addEventListener('click', () => {
+    refOffsets[refMode] = { x: 0, y: 0 };
+    if (refMove) updateRefStatus(mouse || { x: 0, y: 0 });
+    draw();
+  });
   $('refAlpha').addEventListener('input', (e) => { refAlpha = e.target.value / 100; draw(); });
   $('epsilon').addEventListener('input', (e) => {
     epsilon = +e.target.value;
@@ -549,11 +681,18 @@ ${armBlocks}
     readArmFile(e.target.files && e.target.files[0]);
     e.target.value = ''; // 允许重复选择同一个文件
   });
-  // 直接把 arms-data.js 文件拖进窗口任意位置也能导入
+  $('refImgBtn').addEventListener('click', () => $('refImgFile').click());
+  $('refImgFile').addEventListener('change', (e) => {
+    importRefImage(e.target.files && e.target.files[0]);
+    e.target.value = ''; // 允许重复选择同一个文件
+  });
+  // 直接把 arms-data.js 或图片文件拖进窗口任意位置也能导入
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => {
     e.preventDefault();
-    readArmFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) importRefImage(f); // 图片 → 背景
+    else readArmFile(f);                                     // 其它 → 臂数据
   });
   $('exportBtn').addEventListener('click', openExport);
   $('closeExportBtn').addEventListener('click', () => { $('exportPanel').hidden = true; });

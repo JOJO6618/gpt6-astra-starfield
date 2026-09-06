@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>中心光球 + 大雾 · 隔离测试</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #070a10; }
+  #cv { display: block; width: 100vw; height: 100vh; }
+  .panel {
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    background: rgba(13,18,26,0.88); border: 1px solid #273042; border-radius: 10px;
+    padding: 12px 14px; color: #d5dbe5; font-size: 12px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    display: flex; flex-direction: column; gap: 8px; min-width: 240px;
+  }
+  .title { font-weight: 600; color: #f0f4fa; margin-bottom: 2px; }
+  label { display: flex; align-items: center; gap: 8px; color: #8b95a5; }
+  label input[type="range"] { flex: 1; accent-color: #5b9dff; }
+  label em { font-style: normal; color: #cdd6e2; min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+  .chk { cursor: pointer; }
+  .note { color: #5f6b7d; font-size: 11px; line-height: 1.5; border-top: 1px solid #1e2530; padding-top: 8px; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="panel">
+  <div class="title">中心光球 + 大雾 · 隔离测试</div>
+  <label>大雾直径 <input type="range" id="mSize" min="300" max="900" value="560" /><em id="mSizeV">560</em></label>
+  <label>大雾强度 <input type="range" id="mAlpha" min="0" max="150" value="100" /><em id="mAlphaV">1.00</em></label>
+  <label>平顶半径 <input type="range" id="pRadius" min="0" max="40" value="22" /><em id="pRadiusV">22%</em></label>
+  <label class="chk"><input type="checkbox" id="showBalls" checked /> 显示 70 个光球</label>
+  <label class="chk"><input type="checkbox" id="markKing" checked /> 标记锚点球（绿圈）</label>
+  <label class="chk"><input type="checkbox" id="hazeAdd" /> 大雾叠加（lighter，用于对比）</label>
+  <div class="note">与主程序一致：全场 source-over（不叠加）。大雾为单张 512px 平顶高斯 sprite：中心圆内压平为圆边缘亮度，外围曲线不变，无分层边界。</div>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  /* ===== 以下三个 sprite 生成函数与 js/app.js 完全一致 ===== */
+  function makeGlowSprite(rgb) {
+    const s = 96;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const c = cv.getContext('2d');
+    const col = rgb.join(',');
+    const mixW = rgb.map((v) => Math.round(v + (255 - v) * 0.38)).join(',');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.025, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.065, `rgba(${mixW},0.85)`);
+    g.addColorStop(0.14, `rgba(${col},0.62)`);
+    g.addColorStop(0.26, `rgba(${col},0.32)`);
+    g.addColorStop(0.46, `rgba(${col},0.10)`);
+    g.addColorStop(0.72, `rgba(${col},0.024)`);
+    g.addColorStop(1.00, `rgba(${col},0)`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, s, s);
+    return cv;
+  }
+
+  function makeBloomSprite(rgb) {
+    const s = 192;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const c = cv.getContext('2d');
+    const soft = rgb.map((v) => Math.round(v + (255 - v) * 0.55)).join(',');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    g.addColorStop(0.00, 'rgba(255,255,255,0.28)');
+    g.addColorStop(0.10, `rgba(${soft},0.18)`);
+    g.addColorStop(0.28, `rgba(${soft},0.070)`);
+    g.addColorStop(0.55, `rgba(${soft},0.022)`);
+    g.addColorStop(1.00, `rgba(${soft},0)`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, s, s);
+    return cv;
+  }
+
+  function makeMistSprite(rgb) {
+    const s = 320;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const c = cv.getContext('2d');
+    const soft = rgb.map((v) => Math.round(v + (255 - v) * 0.72)).join(',');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    g.addColorStop(0.00, `rgba(${soft},0.090)`);
+    g.addColorStop(0.12, `rgba(${soft},0.060)`);
+    g.addColorStop(0.34, `rgba(${soft},0.022)`);
+    g.addColorStop(0.68, `rgba(${soft},0.006)`);
+    g.addColorStop(1.00, `rgba(${soft},0)`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, s, s);
+    return cv;
+  }
+
+  /* ===== 中心大雾单张 sprite：与 js/app.js 的 makeCoreHazeSprite 一致（平顶高斯） ===== */
+  function makeCoreHazeSprite(plateauR = 0.22) {
+    const s = 512;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const c = cv.getContext('2d');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    const SIGMA = 0.33;
+    const base = (r) => 0.60 * Math.exp(-((r / SIGMA) ** 2));
+    const edge = base(plateauR);
+    const N = 28;
+    for (let i = 0; i <= N; i++) {
+      const r = i / N;
+      const a = r < plateauR ? edge : base(r);
+      g.addColorStop(r, `rgba(255,255,255,${a.toFixed(4)})`);
+    }
+    c.fillStyle = g;
+    c.fillRect(0, 0, s, s);
+    return cv;
+  }
+
+  const STAR_COLORS = [
+    { rgb: [255, 255, 255] },
+    { rgb: [186, 230, 255] },
+  ];
+  const sprites = STAR_COLORS.map((c) => makeGlowSprite(c.rgb));
+  const blooms = STAR_COLORS.map((c) => makeBloomSprite(c.rgb));
+  const mists = STAR_COLORS.map((c) => makeMistSprite(c.rgb));
+  const coreHaze = { img: null };
+  coreHaze.img = makeCoreHazeSprite(0.22);
+
+  /* ===== 70 个光球：分布参数与主程序 reset() 一致 ===== */
+  const TAU = Math.PI * 2;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const balls = [];
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * TAU;
+    const b = Math.acos(rand(-1, 1));
+    const rr = 26 * Math.pow(Math.random(), 1.8);
+    balls.push({
+      wx: rr * Math.sin(b) * Math.cos(a),
+      wy: rr * Math.cos(b) * 0.7,
+      wz: rr * Math.sin(b) * Math.sin(a),
+      size: Math.random() < 0.12 ? rand(2.2, 3.6) : rand(0.8, 2.0),
+      ci: Math.random() < 0.85 ? 0 : 1,
+      baseA: rand(0.35, 0.8),
+    });
+  }
+  // 与主程序相同：最亮的球作为大雾锚点
+  const king = balls.reduce(
+    (best, s) => (s.size * s.baseA > best.size * best.baseA ? s : best),
+    balls[0]
+  );
+
+  /* ===== 画布与背景（同主程序配色） ===== */
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  let W = 0, H = 0, scale = 1, bgGrad = null;
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    scale = Math.min(W, H) / 900; // ≈ 主程序的 corePx
+    bgGrad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.hypot(W, H) * 0.62);
+    bgGrad.addColorStop(0, '#000102');
+    bgGrad.addColorStop(0.3, '#010407');
+    bgGrad.addColorStop(0.65, '#030a10');
+    bgGrad.addColorStop(1, '#061722');
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* ===== 滑杆 ===== */
+  const $ = (id) => document.getElementById(id);
+  const ui = { mSize: 560, mAlpha: 1, plateau: 0.22 };
+  $('mSize').addEventListener('input', (e) => { ui.mSize = +e.target.value; $('mSizeV').textContent = ui.mSize; });
+  $('mAlpha').addEventListener('input', (e) => { ui.mAlpha = e.target.value / 100; $('mAlphaV').textContent = ui.mAlpha.toFixed(2); });
+  // 平顶半径变化 → 重新生成 sprite
+  $('pRadius').addEventListener('input', (e) => {
+    ui.plateau = e.target.value / 100;
+    $('pRadiusV').textContent = e.target.value + '%';
+    coreHaze.img = makeCoreHazeSprite(ui.plateau);
+  });
+
+  /* ===== 渲染循环（缓慢自转，模拟主程序 CORE_SPIN） ===== */
+  function frame(now) {
+    const t = now / 1000;
+    const rot = t * 0.06;
+    const cosR = Math.cos(rot), sinR = Math.sin(rot);
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // ----- 光球：source-over（不叠加），与主程序当前状态一致 -----
+    let kingX = W / 2, kingY = H / 2;
+    if ($('showBalls').checked) {
+      for (const s of balls) {
+        const rx = s.wx * cosR + s.wz * sinR;
+        const rz = -s.wx * sinR + s.wz * cosR;
+        const x = W / 2 + rx * scale;
+        const y = H / 2 + rz * scale;
+        if (s === king) { kingX = x; kingY = y; }
+        const d = s.size * 12 * scale;
+        ctx.globalAlpha = s.baseA;
+        ctx.drawImage(sprites[s.ci], x - d / 2, y - d / 2, d, d);
+      }
+    } else {
+      const rx = king.wx * cosR + king.wz * sinR;
+      const rz = -king.wx * sinR + king.wz * cosR;
+      kingX = W / 2 + rx * scale;
+      kingY = H / 2 + rz * scale;
+    }
+
+    // ----- 中心大雾：默认 source-over（不叠加）；勾选「大雾叠加」可对比 lighter 效果 -----
+    ctx.globalCompositeOperation = $('hazeAdd').checked ? 'lighter' : 'source-over';
+    const m0 = ui.mSize * scale;
+    ctx.globalAlpha = ui.mAlpha;
+    ctx.drawImage(coreHaze.img, kingX - m0 / 2, kingY - m0 / 2, m0, m0);
+
+    // ----- 锚点标记 -----
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    if ($('markKing').checked) {
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(kingX, kingY, 10, 0, TAU);
+      ctx.moveTo(kingX - 16, kingY); ctx.lineTo(kingX + 16, kingY);
+      ctx.moveTo(kingX, kingY - 16); ctx.lineTo(kingX, kingY + 16);
+      ctx.stroke();
+    }
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

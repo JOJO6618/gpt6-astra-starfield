@@ -15,8 +15,8 @@ EXCLUDE_R = 120     # 中心汇入区：r < 120 内不检查（各臂在此淡�
 END_SKIP = 0.04     # 首尾各 4% 弧长不参与检查（起点/终点允许靠近）
 MIN_GAP = 40        # 达标间距（设计 px）
 
-# 分叉臂对：O2 是 O1 的伴生分叉（同起点、前段并行后分开），不检查间距
-EXEMPT_PAIRS = {frozenset(('O1', 'O2'))}
+# 分叉臂对：P 是 O 的伴生分叉（同起点、前段并行后分开），不检查间距
+EXEMPT_PAIRS = {frozenset(('O', 'P'))}
 
 
 def parse_arms(js_path: str):

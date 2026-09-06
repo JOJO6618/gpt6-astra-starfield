@@ -97,6 +97,7 @@ select {
   transition: background .15s, border-color .15s;
 }
 .btn:hover { background: #232b38; }
+.btn.active { border-color: #5b9dff; color: #fff; box-shadow: 0 0 0 1px #5b9dff inset; }
 .btn--primary { background: #2563eb; border-color: #2563eb; color: #fff; }
 .btn--primary:hover { background: #2f74f0; }
 .btn--danger:hover { border-color: #b3493e; color: #ff9b8f; }

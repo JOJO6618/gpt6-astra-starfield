@@ -51,15 +51,57 @@
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   }
 
-  function pickColorIndex() {
+  // 颜色与尺寸分层：官网的“大亮星”明显更接近白/冰白，
+  // 色彩丰富度主要来自 dust，而不是把橙红色平均分给所有尺寸。
+  const BASE_COLOR_WEIGHTS = STAR_COLORS.map((c) => c.weight);
+  const COLOR_WEIGHTS = {
+    // 官网的色彩主要藏在小/中星里；比 v1 明显增加 cyan + amber。
+    dust:  [18, 20, 24, 12, 6, 13, 7],
+    mid:   [26, 23, 22,  9, 7, 10, 3],
+    // 大星仍以白/冰白为主，但保留可见的蓝、暖色恒星。
+    big:   [38, 25, 14,  4, 10, 8, 1],
+    giant: [48, 23,  9,  2, 11, 7, 0],
+    bg:    [28, 23, 20,  9, 7, 10, 3],
+  };
+  const TIER_CDF = {
+    // 58% dust / 35% mid / 6.2% big / 0.8% giant
+    foreground: [0.58, 0.93, 0.992],
+    // 背景也需要可见层次：78% dust / 19% mid / 2.6% big / 0.4% giant
+    background: [0.78, 0.97, 0.996],
+  };
+  const STAR_SIZE = {
+    foreground: {
+      dust: [0.22, 0.65], mid: [0.65, 1.35], big: [1.60, 3.00], giant: [2.50, 3.60],
+    },
+    background: {
+      dust: [0.18, 0.50], mid: [0.50, 1.05], big: [1.25, 2.30], giant: [1.90, 2.80],
+    },
+  };
+
+  function pickWeightedIndex(weights) {
     let total = 0;
-    for (const c of STAR_COLORS) total += c.weight;
+    for (const w of weights) total += w;
     let r = Math.random() * total;
-    for (let i = 0; i < STAR_COLORS.length; i++) {
-      r -= STAR_COLORS[i].weight;
+    for (let i = 0; i < weights.length; i++) {
+      r -= weights[i];
       if (r <= 0) return i;
     }
     return 0;
+  }
+  function pickColorIndex(tier) {
+    return pickWeightedIndex(COLOR_WEIGHTS[tier] || BASE_COLOR_WEIGHTS);
+  }
+  function pickTier(kind) {
+    const cdf = TIER_CDF[kind];
+    const roll = Math.random();
+    if (roll < cdf[0]) return 'dust';
+    if (roll < cdf[1]) return 'mid';
+    if (roll < cdf[2]) return 'big';
+    return 'giant';
+  }
+  function randomStarSize(tier, kind) {
+    const [a, b] = STAR_SIZE[kind][tier];
+    return rand(a, b);
   }
 
   /* ---------------- 相机滚动驱动参数 ---------------- */
@@ -207,53 +249,116 @@
   }
 
   /* ---------------- 发光 sprite 预渲染 ---------------- */
-  /** 中小星 / 大光晕星：高斯式柔和衰减（核心白 → 本色 → 消散） */
+  /** v2 星核：白心只占极小面积，让 cyan / amber 在小尺寸下仍然读得出来。 */
   function makeGlowSprite(rgb) {
-    const s = 64;
+    const s = 96;
     const cv = document.createElement('canvas');
     cv.width = cv.height = s;
     const c = cv.getContext('2d');
     const col = rgb.join(',');
-    const mixW = rgb.map((v) => Math.round(v + (255 - v) * 0.55)).join(',');
+    const mixW = rgb.map((v) => Math.round(v + (255 - v) * 0.38)).join(',');
     const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-    g.addColorStop(0.0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.06, 'rgba(255,255,255,0.9)');
-    g.addColorStop(0.14, `rgba(${mixW},0.55)`);
-    g.addColorStop(0.26, `rgba(${col},0.26)`);
-    g.addColorStop(0.42, `rgba(${col},0.10)`);
-    g.addColorStop(0.65, `rgba(${col},0.03)`);
-    g.addColorStop(1, `rgba(${col},0)`);
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.025, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.065, `rgba(${mixW},0.85)`);
+    g.addColorStop(0.14, `rgba(${col},0.62)`);
+    g.addColorStop(0.26, `rgba(${col},0.32)`);
+    g.addColorStop(0.46, `rgba(${col},0.10)`);
+    g.addColorStop(0.72, `rgba(${col},0.024)`);
+    g.addColorStop(1.00, `rgba(${col},0)`);
     c.fillStyle = g;
     c.fillRect(0, 0, s, s);
     return cv;
   }
 
-  /** 特大星：高斯柔光主体 + 细十字星芒 */
+  /** v2 bloom：仍然接近白，但保留星体温度；同时整体提高约一档曝光。 */
+  function makeBloomSprite(rgb) {
+    const s = 192;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const c = cv.getContext('2d');
+    const soft = rgb.map((v) => Math.round(v + (255 - v) * 0.55)).join(',');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    g.addColorStop(0.00, 'rgba(255,255,255,0.28)');
+    g.addColorStop(0.10, `rgba(${soft},0.18)`);
+    g.addColorStop(0.28, `rgba(${soft},0.070)`);
+    g.addColorStop(0.55, `rgba(${soft},0.022)`);
+    g.addColorStop(1.00, `rgba(${soft},0)`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, s, s);
+    return cv;
+  }
+
+  /** v2 giant：大星仍以白色过曝，但外围 halo 明显带出蓝/暖色。 */
   function makeHaloSprite(rgb) {
     const s = 128;
     const cv = document.createElement('canvas');
     cv.width = cv.height = s;
     const c = cv.getContext('2d');
     const col = rgb.join(',');
-    for (const [sx, sy] of [[1, 0.03], [0.03, 1]]) {
+    const mixW = rgb.map((v) => Math.round(v + (255 - v) * 0.55)).join(',');
+    for (const [sx, sy, coreA] of [[1, 0.020, 0.050], [0.024, 1, 0.16]]) {
       c.save();
       c.translate(s / 2, s / 2);
       c.scale(sx, sy);
       const g = c.createRadialGradient(0, 0, 0, 0, 0, s / 2);
-      g.addColorStop(0, 'rgba(255,255,255,0.32)');
-      g.addColorStop(0.3, `rgba(${col},0.10)`);
-      g.addColorStop(1, `rgba(${col},0)`);
+      g.addColorStop(0, `rgba(255,255,255,${coreA})`);
+      g.addColorStop(0.32, `rgba(${mixW},${coreA * 0.30})`);
+      g.addColorStop(1, `rgba(${mixW},0)`);
       c.fillStyle = g;
       c.fillRect(-s / 2, -s / 2, s, s);
       c.restore();
     }
-    const g2 = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.3);
-    g2.addColorStop(0, 'rgba(255,255,255,1)');
-    g2.addColorStop(0.1, 'rgba(255,255,255,0.85)');
-    g2.addColorStop(0.3, `rgba(${col},0.45)`);
-    g2.addColorStop(0.6, `rgba(${col},0.12)`);
-    g2.addColorStop(1, `rgba(${col},0)`);
+    const g2 = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s * 0.30);
+    g2.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g2.addColorStop(0.055, 'rgba(255,255,255,0.96)');
+    g2.addColorStop(0.18, `rgba(${mixW},0.60)`);
+    g2.addColorStop(0.34, `rgba(${col},0.26)`);
+    g2.addColorStop(0.60, `rgba(${col},0.07)`);
+    g2.addColorStop(1.00, `rgba(${col},0)`);
     c.fillStyle = g2;
+    c.fillRect(0, 0, s, s);
+    return cv;
+  }
+
+  /** v3 低频雾光：不是"星点本身变大"，而是给星带增加官方那种柔软的镜头感。 */
+  function makeMistSprite(rgb) {
+    const s = 320;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const c = cv.getContext('2d');
+    const soft = rgb.map((v) => Math.round(v + (255 - v) * 0.72)).join(',');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    g.addColorStop(0.00, `rgba(${soft},0.090)`);
+    g.addColorStop(0.12, `rgba(${soft},0.060)`);
+    g.addColorStop(0.34, `rgba(${soft},0.022)`);
+    g.addColorStop(0.68, `rgba(${soft},0.006)`);
+    g.addColorStop(1.00, `rgba(${soft},0)`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, s, s);
+    return cv;
+  }
+
+  /** 中心大雾专用：单张 512px 平顶高斯雾 sprite。
+   *  基础曲线为高斯形（中心 0.60 → 边缘 0）；plateauR 圆内不取中心峰值，
+   *  而是压平为该圆边缘处的亮度——中心不过曝、光球细节可辨，外围不变。
+   *  全程一条曲线、无分层边界；可见直径 ≈ 绘制尺寸的 2/3。 */
+  function makeCoreHazeSprite(plateauR = 0.22) {
+    const s = 512;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = s;
+    const c = cv.getContext('2d');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    const SIGMA = 0.33;                                  // 高斯雾衰减宽度
+    const base = (r) => 0.60 * Math.exp(-((r / SIGMA) ** 2));
+    const edge = base(plateauR);                         // 圆边缘亮度 = 平顶高度
+    const N = 28;                                        // 采样点数（越多越平滑）
+    for (let i = 0; i <= N; i++) {
+      const r = i / N;
+      const a = r < plateauR ? edge : base(r);
+      g.addColorStop(r, `rgba(255,255,255,${a.toFixed(4)})`);
+    }
+    c.fillStyle = g;
     c.fillRect(0, 0, s, s);
     return cv;
   }
@@ -266,7 +371,10 @@
       this.ctx = this.canvas.getContext('2d');
 
       this.sprites = STAR_COLORS.map((c) => makeGlowSprite(c.rgb));
+      this.blooms = STAR_COLORS.map((c) => makeBloomSprite(c.rgb));
+      this.mists = STAR_COLORS.map((c) => makeMistSprite(c.rgb));
       this.halos = STAR_COLORS.map((c) => makeHaloSprite(c.rgb));
+      this.coreHaze = makeCoreHazeSprite(); // 中心大雾专用单张 sprite
 
       this.particles = [];
       this.bgStars = [];
@@ -357,21 +465,22 @@
       this.canvas.height = Math.round(this.H * dpr);
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      this.scale = Math.min(this.W / CFG.shapeW, this.H / CFG.shapeH);
+      // viewFit < 1：整体缩小取景，6 的形状不再贴到窗口顶/底
+      this.scale = Math.min(this.W / CFG.shapeW, this.H / CFG.shapeH) * (CFG.viewFit || 1);
       CAM.setViewport(this.W, this.H, this.scale, CFG.centerAnchorY);
 
       this.arms = ARMS.map((def) => buildArm(def));
       this.originArms = this.arms.filter((a) => ORIGINS.includes(a.name));
 
-      // 深空背景：中心圆形区域近黑，越靠外越偏深蓝
+      // 官网更接近“黑里带一点青蓝”，而不是明显 navy。
       const bg = this.ctx.createRadialGradient(
         this.W / 2, this.H / 2, 0,
         this.W / 2, this.H / 2, Math.hypot(this.W, this.H) * 0.62
       );
-      bg.addColorStop(0, '#010204');
-      bg.addColorStop(0.3, '#030408');
-      bg.addColorStop(0.65, '#071020');
-      bg.addColorStop(1, '#0b1728');
+      bg.addColorStop(0, '#000102');
+      bg.addColorStop(0.3, '#010407');
+      bg.addColorStop(0.65, '#030a10');
+      bg.addColorStop(1, '#061722');
       this.bgGrad = bg;
       this.ctx.fillStyle = bg;
       this.ctx.fillRect(0, 0, this.W, this.H);
@@ -390,26 +499,19 @@
         const n = Math.max(80, Math.round(arm.length * CFG.flowDensity));
         for (let i = 0; i < n; i++) this.particles.push(this.makeParticle(arm, bandHalf));
       }
-      // 背景星：三档尺寸比例与流动星一致（95.5% 中小 / 4% 大光晕 / 0.5% 十字芒），
-      // 不参与汇聚/螺旋变形，一直在背景上；仅在分裂阶段退到两侧（滚回则归位）。
+      // 背景星独立分布：绝大多数是低亮度针尖星，避免与主体旋臂抢层级。
       // 3D 视差（屏幕插值模型，位移有界）：
       //   - 生成区域扩出屏幕四周（x -30%~130%，y -35%~135%）+ 边缘羽化，倾斜时看不到“矩形边”
       //   - 深度平方分布 0.15~1.0：远多近少，最近层与主体同幅度（滚到底最大约 500px）
       CAM.setView(90, 0, 1); // 以初始俯视为生成基准
       const EX0 = -0.3 * this.W, EX1 = 1.3 * this.W, EY0 = -0.35 * this.H, EY1 = 1.35 * this.H;
       for (let i = 0; i < CFG.bgStars; i++) {
-        const roll = Math.random();
-        let tier;
-        if (roll < 0.5306) tier = 'dust';
-        else if (roll < 0.955) tier = 'mid';
-        else if (roll < 0.995) tier = 'big';
-        else tier = 'giant';
-        const size = {
-          dust: () => rand(0.25, 0.65),
-          mid: () => rand(0.7, 1.6),
-          big: () => rand(1.8, 3.5),
-          giant: () => rand(2.6, 3.8),
-        }[tier]();
+        const tier = pickTier('background');
+        const size = randomStarSize(tier, 'background');
+        const baseA = tier === 'dust' ? rand(0.18, 0.44)
+          : tier === 'mid' ? rand(0.24, 0.56)
+          : tier === 'big' ? rand(0.30, 0.62)
+          : rand(0.36, 0.68);
         const hx = rand(EX0, EX1);
         const hy = rand(EY0, EY1);
         // 反投影：过该像素的射线与星系平面（y=0）的交点 = 视差锚点
@@ -430,8 +532,8 @@
           depth: 0.15 + 0.85 * Math.random() * Math.random(), // 深度：远多近少，1 = 与主体同幅度
           edgeA,                     // 边缘羽化透明度
           size, tier,
-          ci: pickColorIndex(), // 与主体同一套 7 色高亮配色
-          baseA: rand(0.55, 1), // 亮度也与主体一致
+          ci: pickColorIndex('bg'),
+          baseA,
           ox: 0, oy: 0, vx: 0, vy: 0,
           side: bside,
           sfx: bside < 0 ? bfx : 1 - bfx,
@@ -470,6 +572,11 @@
           ga: null,
         });
       }
+      // 选出最亮的一颗球：中心大雾锚在它身上（官网细节：大雾的心就是其中一个白球）
+      this.coreKing = this.coreStars.reduce(
+        (best, s) => (s.size * s.baseA > best.size * best.baseA ? s : best),
+        this.coreStars[0]
+      );
     }
 
     makeParticle(arm, bandHalf) {
@@ -517,15 +624,16 @@
         size,
         tier,
         ox: 0, oy: 0, vx: 0, vy: 0, // 鼠标交互位移/速度
-        ci: pickColorIndex(),
-        baseA: rand(0.55, 1),
+        ci: pickColorIndex(tier),
+        baseA: rand(0.68, 1.00),
         side, sfx, sfy, // 分裂阶段归属侧 + 槽位
         lag, arcA,      // 分裂滞后 + 弧线幅度
-        // 5% 中小星在运动中被“点燃”，平滑变大成为大光晕星
-        willGrow: (tier === 'dust' || tier === 'mid') && Math.random() < 0.05,
+        // 少量中小星途中“点燃”；降低概率，避免大光球数量膨胀
+        willGrow: (tier === 'dust' || tier === 'mid') && Math.random() < 0.026,
         growAt: rand(0.15, 0.8),
         growK: 0,
-        bigSize: rand(1.8, 3.5),
+        bigSize: rand(1.60, 3.00),
+        mistSeed: Math.random(), // 用于低频雾光采样，避免所有粒子都加一层大雾
         ga: null, // 汇聚弧线缓存
       };
     }
@@ -695,7 +803,9 @@
       ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
 
-      ctx.globalCompositeOperation = 'lighter';
+      // 实验：改为普通遮挡混合（不叠加），侧视时亮度不再累加。
+      // 恢复原加色发光：把 'source-over' 改回 'lighter'。
+      ctx.globalCompositeOperation = 'source-over';
 
       /* ----- 远景静态星（响应鼠标；相机倾斜时按深度视差错位；分裂时退到两侧） ----- */
       for (const s of this.bgStars) {
@@ -718,9 +828,17 @@
           continue;
         }
         this.interact(s, bx, by, dt, BG_DRAG_FORCE); // 背景星：拖动旋转时是否受力由开关控制
-        ctx.globalAlpha = s.baseA * s.edgeA;
-        const f = s.tier === 'giant' ? 24 : s.tier === 'big' ? 16 : 10; // 与流动星同系数
+        const baseAlpha = s.baseA * s.edgeA;
+        const f = s.tier === 'giant' ? 18 : s.tier === 'big' ? 14 : s.tier === 'mid' ? 10 : 8;
         const d = s.size * f * this.scale;
+        if (s.tier === 'big' || s.tier === 'giant') {
+          const bloomK = s.tier === 'giant' ? 0.28 : 0.16;
+          const bloomScale = s.tier === 'giant' ? 3.0 : 2.5;
+          const bd = d * bloomScale;
+          ctx.globalAlpha = baseAlpha * bloomK;
+          ctx.drawImage(this.blooms[s.ci], bx + s.ox - bd / 2, by + s.oy - bd / 2, bd, bd);
+        }
+        ctx.globalAlpha = baseAlpha;
         const spr = s.tier === 'giant' ? this.halos[s.ci] : this.sprites[s.ci];
         ctx.drawImage(spr, bx + s.ox - d / 2, by + s.oy - d / 2, d, d);
       }
@@ -744,12 +862,12 @@
           if (p.u >= p.arm.endU) {
             p.u -= p.arm.endU;
             absorbed++;
-            // 重生：中小星重新掷 5% 的“点燃”概率
+            // 重生后保持与初始一致的点亮概率
             if (p.tier === 'dust' || p.tier === 'mid') {
-              p.willGrow = Math.random() < 0.05;
+              p.willGrow = Math.random() < 0.026;
               p.growAt = rand(0.15, 0.8);
               p.growK = 0;
-              p.bigSize = rand(1.8, 3.5);
+              p.bigSize = rand(1.60, 3.00);
             }
           }
         }
@@ -813,17 +931,49 @@
         const px = sp.sc / S; // 设计 px → 屏幕 px（含逐点深度：近大远小）
         ctx.globalAlpha = alpha;
         if (p.tier === 'giant') {
-          const d = p.size * 24 * px * grow * sizeK;
+          // v3：除了 bloom，再加一层超宽低频雾光，形成官网那种"镜头空气感"。
+          const d = p.size * 20 * px * grow * sizeK;
+          const md = d * 5.6;
+          const bd = d * 3.45;
+          ctx.globalAlpha = alpha * 0.13;
+          ctx.drawImage(this.mists[p.ci], x - md / 2, y - md / 2, md, md);
+          ctx.globalAlpha = alpha * 0.64;
+          ctx.drawImage(this.blooms[p.ci], x - bd / 2, y - bd / 2, bd, bd);
+          ctx.globalAlpha = alpha;
           ctx.drawImage(this.halos[p.ci], x - d / 2, y - d / 2, d, d);
         } else if (p.tier === 'big') {
-          const d = p.size * 16 * px * grow * sizeK;
+          const d = p.size * 15 * px * grow * sizeK;
+          const md = d * 4.5;
+          const bd = d * 3.0;
+          ctx.globalAlpha = alpha * 0.085;
+          ctx.drawImage(this.mists[p.ci], x - md / 2, y - md / 2, md, md);
+          ctx.globalAlpha = alpha * 0.46;
+          ctx.drawImage(this.blooms[p.ci], x - bd / 2, y - bd / 2, bd, bd);
+          ctx.globalAlpha = alpha;
           ctx.drawImage(this.sprites[p.ci], x - d / 2, y - d / 2, d, d);
         } else {
-          // 中小星：被“点燃”的平滑过渡为大光晕星
+          // 中小星：抽样叠加极淡的低频雾光，让整条旋臂出现连续柔雾，而不是只有点状 halo。
           const gk = p.growK;
           const ek = 1 - Math.pow(1 - gk, 3); // easeOutCubic
           const size = gk > 0 ? lerp(p.size, p.bigSize, ek) : p.size;
-          const d = size * lerp(10, 16, ek) * px * grow * sizeK;
+          const baseF = p.tier === 'dust' ? 10 : 12;
+          const d = size * lerp(baseF, 15, ek) * px * grow * sizeK;
+
+          const mistAlpha = p.tier === 'mid'
+            ? (p.mistSeed < 0.30 ? 0.032 : 0)
+            : (p.mistSeed < 0.08 ? 0.016 : 0);
+          if (mistAlpha > 0) {
+            const md = d * (p.tier === 'mid' ? 3.4 : 2.8);
+            ctx.globalAlpha = alpha * mistAlpha;
+            ctx.drawImage(this.mists[p.ci], x - md / 2, y - md / 2, md, md);
+          }
+
+          if (ek > 0.01) {
+            const bd = d * 2.55;
+            ctx.globalAlpha = alpha * 0.30 * ek;
+            ctx.drawImage(this.blooms[p.ci], x - bd / 2, y - bd / 2, bd, bd);
+          }
+          ctx.globalAlpha = alpha;
           ctx.drawImage(this.sprites[p.ci], x - d / 2, y - d / 2, d, d);
         }
       }
@@ -842,10 +992,17 @@
       }
 
       /* ----- 中心光团（光晕球散布→汇聚→成团；吞星增亮；每个球独立响应鼠标） ----- */
-      // 光晕球本体：全程可见，从满屏散布沿逆时针弧线汇入中心；独立受力，鼠标擦过呈果冻形变
+      // 官网核心：一颗颗小而清晰的白球颗粒 + 一圈锚在最亮球身上的额外大雾（球循环后绘制）。
       const boost = 1 + this.pulse * 0.8;
+      const coreIn = smoothstep(CFG.centerStarIn[0], CFG.centerStarIn[1], t);
+      const coreOut = 1 - smoothstep(0.0, 0.35, this.splitRaw);
+      const coreVis = coreIn * coreOut;
+
+      // 光晕球不叠加（source-over）：颗粒之间不互叠，外形清晰可辨；只有中心大雾叠加
+      // 光晕球本体：全程可见，从满屏散布沿逆时针弧线汇入中心；独立受力，鼠标擦过呈果冻形变
       const coreRot = t * CORE_SPIN;         // 中心光团小范围缓慢自转
       const cosR = Math.cos(coreRot), sinR = Math.sin(coreRot);
+      let kingX = null, kingY = null;        // 最亮球的屏幕位置（中心大雾的锚点）
       for (const s of this.coreStars) {
         // 绕世界 Y 轴（过中心）旋转
         const rx = s.wx * cosR + s.wz * sinR;
@@ -878,9 +1035,24 @@
         }
         this.interact(s, x, y, dt); // 每球独立：来拒去留 + 弹簧回位
         x += s.ox; y += s.oy;
-        ctx.globalAlpha = Math.min(1, s.baseA * boost);
-        const d = s.size * 13 * (tp.sc / S);
+        if (s === this.coreKing) { kingX = x; kingY = y; } // 记录最亮球位置
+        const sAlpha = Math.min(1, s.baseA * boost);
+        const d = s.size * 12 * (tp.sc / S);
+        // 官网：其他白球光晕极小、外形清晰可辨——只画 sprite 本体，不再叠加大雾层
+        ctx.globalAlpha = sAlpha;
         ctx.drawImage(this.sprites[s.ci], x - d / 2, y - d / 2, d, d);
+      }
+
+      /* ----- 中心大雾：官网最中心还有一圈额外的大光晕，锚在核心团最亮的那颗白球上 ----- */
+      // 大雾也不叠加（source-over）：一团半透明的雾，只按自身 alpha 呈现，不提亮底图
+      if (coreVis > 0.001 && kingX !== null) {
+        const corePx = O.sc / S;
+        const hazeBoost = 1 + this.pulse * 0.5;
+
+        // 单张高斯雾：绘制 560 ≈ 可见直径 370 ≈ 图形宽度的一半；曲线平滑到边缘，无分层边界
+        const m0 = 560 * corePx;
+        ctx.globalAlpha = Math.min(1, 0.9 * coreVis * hazeBoost);
+        ctx.drawImage(this.coreHaze, kingX - m0 / 2, kingY - m0 / 2, m0, m0);
       }
 
       ctx.globalAlpha = 1;

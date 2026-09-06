@@ -14,9 +14,8 @@
   const TAU = Math.PI * 2;
   const S = 420;
   const STATIONS = 9; // 站点数（含起点与中心；中心锁定 z=0）
-  const COLORS = { G: '#4ade80', R: '#f87171', O1: '#fb923c', O2: '#c084fc', B: '#60a5fa' };
-  const NAMES = { O2: 'P' };
-  const ORDER = ['G', 'R', 'O1', 'O2', 'B'];
+  const COLORS = { G: '#4ade80', R: '#f87171', O: '#fb923c', P: '#c084fc', B: '#60a5fa' };
+  const ORDER = ['G', 'R', 'O', 'P', 'B'];
 
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
   const round1 = (v) => Math.round(v * 10) / 10;
@@ -36,7 +35,7 @@
       const c = window.ARMS_3D[src] || { z0: 0, k: 1 };
       return {
         src,
-        name: NAMES[src] || src,
+        name: src,
         color: COLORS[src],
         z0: c.z0,
         k: c.k,
@@ -297,7 +296,7 @@
  *   z(u) 由 js/zcurve.js 的平滑样条插值，严格经过每个站点；
  *   中心站点（u=1）恒为 0（所有臂汇入中心）。
  *   z0 / k 为公式兜底（zpts 缺失时使用 z0·(1−u)^k）。
- *   键名与 arms-data.js 的臂名一致（P 的数据仍叫 O2）。
+ *   键名与 arms-data.js 的臂名一致。
  * ============================================================ */
 (function () {
   'use strict';

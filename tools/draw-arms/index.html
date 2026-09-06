@@ -31,6 +31,10 @@
           <option value="sketch">手绘示意</option>
         </select>
       </label>
+      <button id="refImgBtn" class="btn" title="导入本地图片作为描摹背景（也可以直接把图片拖进窗口）">导入背景图</button>
+      <input type="file" id="refImgFile" accept="image/*" hidden />
+      <button id="refMoveBtn" class="btn" title="开启后在画布上拖动平移背景图，把图中螺旋中心对准中心十字；再点一次退出并固定">移动背景图</button>
+      <button id="refResetBtn" class="btn" title="把背景图位置还原为默认居中">复位</button>
       <label class="field">
         <span>透明度</span>
         <input type="range" id="refAlpha" min="0" max="100" value="45" />
